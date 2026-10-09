@@ -14,8 +14,9 @@ clock = pygame.time.Clock()
 dt = 0
 
 
-
-
+BLUE = (0, 0, 255)
+score_player = 0
+score_enemy = 0
 
 
 class Player:
@@ -26,14 +27,16 @@ class Player:
         self.angle = 90
         self.rotation = 4
         self.maxspd = 40000
-        self.velocity = pygame.Vector2(0, 0)
+        self.velocity = pygame.math.Vector2(0, 0)
         self.left = pygame.Vector2(-1, 0)
         self.right = pygame.Vector2(1, 0)
         self.up = pygame.Vector2(0, -1)
         self.down = pygame.Vector2(0, 1)
         self.acceleration = pygame.Vector2(0, 0)
-        self.thrust = 750
+        self.thrust = 1250
         self.drag = 0.95
+
+
 
 
     def get_forward(self):
@@ -42,26 +45,22 @@ class Player:
 
 
     def draw(self, surface):
-        forward = self.get_forward()
-        left = forward.rotate(180)
-        p1 = self.pos + forward * 88
-        p2 = self.pos + left * 88
-
-
-        pygame.draw.polygon(screen, "green", [p2, p1], 10)
+        p1 = self.pos
+        p2 = self.pos * -1
+        pygame.draw.rect(surface, BLUE, (self.pos.x, self.pos.y, 10, 200))
 
 
     def update(self):
         global dt
         self.velocity += self.acceleration * dt
-        if self.pos.x > WIDTH:
-            self.pos.x = 0
-        if self.pos.x < 0:
-            self.pos.x = WIDTH
-        if self.pos.y > HEIGHT:
-            self.pos.y = 0
+        if self.pos.x > WIDTH // 2:
+            self.pos.x = WIDTH // 2
+        if self.pos.x < 5:
+            self.pos.x = 5
+        if self.pos.y > HEIGHT - 200:
+            self.pos.y = HEIGHT - 200
         if self.pos.y < 0:
-            self.pos.y = HEIGHT
+            self.pos.y = 0
        
         if self.velocity.length() > self.maxspd:
             self.velocity.scale_to_length(self.maxspd)
@@ -72,13 +71,13 @@ class Player:
 
 
    
-class Asteroid:
+class Ball:
 
 
     def __init__(self):
         self.radius = 10
         speed = 50 / self.radius
-
+        self.maxspd = 10
 
         self.pos = pygame.math.Vector2(
             (WIDTH // 2) - (self.radius // 2), (HEIGHT // 2) - (self.radius // 2)
@@ -92,28 +91,32 @@ class Asteroid:
             * speed
         )
 
-
-        self.mass = self.radius ** 2
-
-
     def update(self):
+        global score_player, score_enemy
+
         self.pos += self.vel
 
 
         if self.pos.x > WIDTH:
-            self.pos.x = 0
+            self.vel.x *= -1
+            score_player += 1
 
 
         if self.pos.x < 0:
-            self.pos.x = WIDTH
+            self.vel.x *= -1
+            score_enemy += 1
 
 
         if self.pos.y > HEIGHT:
-            self.pos.y = 0
+            self.vel.y *= -1
 
 
         if self.pos.y < 0:
-            self.pos.y = HEIGHT
+            self.vel.y *= -1
+
+        if self.vel.length() > self.maxspd:
+                    self.vel.scale_to_length(self.maxspd)
+       
 
 
     def draw(self, surface):
@@ -128,52 +131,40 @@ class Asteroid:
 
 
    
-def bounce(a1, a2):
-    distance_vec = a1.pos - a2.pos
-    distance = distance_vec.length()
+def bounce(player, ball):
+    player_rect = pygame.Rect(player.pos.x, player.pos.y, 10, 200)
+
+    p1 = max(player_rect.left, min(ball.pos.x, player_rect.right))
+    p2 = max(player_rect.top, min(ball.pos.y, player_rect.bottom))
+
+    dist_x = ball.pos.x - p1
+    dist_y = ball.pos.y - p2
+    distance_sq = (dist_x**2) + (dist_y**2)
+
+    if distance_sq < (ball.radius**2):
+        distance = math.sqrt(distance_sq)
+
+        if distance > 0:
+            normal = pygame.Vector2(dist_x / distance, dist_y / distance)
+        else:
+            normal = pygame.Vector2(1, 0)
+
+        overlap = ball.radius - distance
+        ball.pos += normal * overlap
+
+        ball.vel = ball.vel.reflect(normal)
+
+        ball.vel += player.velocity * 0.2
 
 
-    min_distance = a1.radius + a2.radius
-
-
-    if distance < min_distance and distance > 0:
-        overlap = min_distance - distance
-        direction = distance_vec.normalize()
-        a1.pos += direction * (overlap / 2)
-        a2.pos -= direction * (overlap / 2)
-
-
-        total_mass = a1.mass + a2.mass
-
-
-        new_vel1 = (
-            a1.vel * (a1.mass - a2.mass) + (2 * a2.mass * a2.vel)
-        ) / total_mass
-        new_vel2 = (
-            a2.vel * (a2.mass - a1.mass) + (2 * a1.mass * a1.vel)
-        ) / total_mass
-
-
-        a1.vel = new_vel1
-        a2.vel = new_vel2
-
-
-asteroids = [Asteroid() for _ in range(1)]
+ball = Ball()
 player = Player()
 
 
 async def main():
-    global dt
-    BLUE = (0, 122, 255)
-    YELLOW = (255, 223, 0)  
+    global dt, score_player, score_enemy
 
-
-    score = 0
     font = pygame.font.SysFont("arial", 30)
-    win_font = pygame.font.SysFont("arial", 60, bold=True)
-
-
-
 
     running = True
     while running:
@@ -183,58 +174,43 @@ async def main():
         keys = pygame.key.get_pressed()
 
 
-        if keys[pygame.K_LEFT]:
-            player.angle += player.rotation
-
-
-        if keys[pygame.K_RIGHT]:
-            player.angle -= player.rotation
-
-
         if keys[pygame.K_w]:
-            player.acceleration = player.up * player.thrust
-
-
+            player.acceleration += player.up
+        
         if keys[pygame.K_s]:
-            player.acceleration = player.down * player.thrust
-
-
+            player.acceleration += player.down
+       
         if keys[pygame.K_a]:
-            player.acceleration = player.left * player.thrust
-
-
+            player.acceleration += player.left
+        
         if keys[pygame.K_d]:
-            player.acceleration = player.right * player.thrust
+            player.acceleration += player.right
 
-
+        if player.acceleration.length() > 0:
+            player.acceleration = player.acceleration.normalize() * player.thrust
 
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
 
+        ball.update()
+        player.update()
+
+        bounce(player, ball)
+
 
         screen.fill((30, 30, 30))
 
-
-
-
-        for asteroid in asteroids:
-            asteroid.draw(screen)
-
-
-        player.update()
+        ball.draw(screen)
         player.draw(screen)
-       
-        # if len(cupcakes) == 0:
-        #     win_text = win_font.render("YOU WIN!", True, (0, 255, 128))
-        #     text_rect = win_text.get_rect(center=(400, 300))
-        #     screen.blit(win_text, text_rect)
 
 
-        score_text = font.render("Score: " + str(score), True, (255, 255, 255))
-        screen.blit(score_text, (20, 20))
+        score_left_text = font.render(f"Player: {score_player}", True, (255, 255, 255))
+        screen.blit(score_left_text, (20, 20))
 
+        score_right_text = font.render(f"Enemy: {score_enemy}", True, (255, 255, 255))
+        screen.blit(score_right_text, (WIDTH - score_right_text.get_width() - 20, 20))
 
         pygame.display.flip()
         dt = clock.tick(60) / 1000.0
