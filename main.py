@@ -17,6 +17,8 @@ dt = 0
 BLUE = (0, 0, 255)
 score_player = 0
 score_enemy = 0
+new_score_player = 0
+new_score_enemy = 0
 
 
 class Player:
@@ -77,7 +79,7 @@ class Ball:
     def __init__(self):
         self.radius = 10
         speed = 50 / self.radius
-        self.maxspd = 10
+        self.maxspd = 5
 
         self.pos = pygame.math.Vector2(
             (WIDTH // 2) - (self.radius // 2), (HEIGHT // 2) - (self.radius // 2)
@@ -85,26 +87,23 @@ class Ball:
 
 
         self.vel = (
-            pygame.math.Vector2(
-                random.uniform(-1, 1), random.uniform(-1, 1)
-            ).normalize()
-            * speed
+            pygame.math.Vector2(0, 0)
         )
 
     def update(self):
-        global score_player, score_enemy
+        global new_score_player, new_score_enemy
 
         self.pos += self.vel
 
 
         if self.pos.x > WIDTH:
             self.vel.x *= -1
-            score_player += 1
+            new_score_player += 1
 
 
         if self.pos.x < 0:
             self.vel.x *= -1
-            score_enemy += 1
+            new_score_enemy += 1
 
 
         if self.pos.y > HEIGHT:
@@ -115,7 +114,7 @@ class Ball:
             self.vel.y *= -1
 
         if self.vel.length() > self.maxspd:
-                    self.vel.scale_to_length(self.maxspd)
+            self.vel.scale_to_length(self.maxspd)
        
 
 
@@ -156,13 +155,24 @@ def bounce(player, ball):
 
         ball.vel += player.velocity * 0.2
 
+def reset():
+    global new_score_player, new_score_enemy, score_player, score_enemy
+    if new_score_player > score_player or new_score_enemy > score_enemy:
+        score_player = new_score_player
+        score_enemy = new_score_enemy
+
+        ball.pos = pygame.math.Vector2(WIDTH // 2, HEIGHT // 2)
+        ball.vel = pygame.math.Vector2(0, 0)
+
+        player.pos = pygame.math.Vector2(50, HEIGHT // 2 - 100)
+
 
 ball = Ball()
 player = Player()
 
 
 async def main():
-    global dt, score_player, score_enemy
+    global dt, new_score_player, new_score_enemy, score_player, score_enemy
 
     font = pygame.font.SysFont("arial", 30)
 
@@ -197,6 +207,7 @@ async def main():
         ball.update()
         player.update()
 
+        reset()
         bounce(player, ball)
 
 
@@ -204,23 +215,18 @@ async def main():
 
         ball.draw(screen)
         player.draw(screen)
+        
 
-
-        score_left_text = font.render(f"Player: {score_player}", True, (255, 255, 255))
+        score_left_text = font.render(f"Player: {new_score_player}", True, (255, 255, 255))
         screen.blit(score_left_text, (20, 20))
 
-        score_right_text = font.render(f"Enemy: {score_enemy}", True, (255, 255, 255))
+        score_right_text = font.render(f"Enemy: {new_score_enemy}", True, (255, 255, 255))
         screen.blit(score_right_text, (WIDTH - score_right_text.get_width() - 20, 20))
 
         pygame.display.flip()
         dt = clock.tick(60) / 1000.0
         await asyncio.sleep(0)
 
-
     pygame.quit()
 
-
 asyncio.run(main())
-
-
-
