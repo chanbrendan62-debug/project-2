@@ -123,65 +123,56 @@ class Ball:
 class Enemy:
 
     def __init__(self):
-            self.pos = pygame.math.Vector2(WIDTH - 60, HEIGHT // 2 - 100)
-            self.angle = 90
-            self.rotation = 4
-            self.maxspd = 40000
-            self.velocity = pygame.math.Vector2(0, 0)
-            self.left = pygame.Vector2(-1, 0)
-            self.right = pygame.Vector2(1, 0)
-            self.up = pygame.Vector2(0, -1)
-            self.down = pygame.Vector2(0, 1)
-            self.acceleration = pygame.Vector2(0, 0)
-            self.thrust = 1250
-            self.drag = 0.95
-
-    def get_forward(self):
-        radians = math.radians(self.angle)
-        return pygame.Vector2(math.cos(radians), -math.sin(radians))
+        self.pos = pygame.math.Vector2(WIDTH - 60, HEIGHT // 2 - 100)
+        self.maxspd = 40000
+        self.velocity = pygame.math.Vector2(0, 0)
+        self.thrust = 100
+        self.drag = 0.95
 
     def draw(self, surface):
-            p1 = self.pos
-            p2 = self.pos * -1
-            pygame.draw.rect(surface, RED, (self.pos.x, self.pos.y, 10, 200))
+        pygame.draw.rect(surface, RED, (self.pos.x, self.pos.y, 10, 200))
 
-    # def update(self, player):
-    #     to_player = player.pos - self.pos
-    #     distance = self.pos.distance_to(player.pos)
+    def update(self, ball):
+        global dt
+        
+        return_x = WIDTH - 60
+        return_y = HEIGHT // 2 - 100
 
-    #     if to_player.length() > 0:
-    #         to_player = to_player.normalize()
+        if ball.pos.x >= WIDTH // 2:
+            target_y = ball.pos.y - 100
+            
+            if target_y > HEIGHT - 200:
+                target_y = HEIGHT - 200
+            if target_y < 0:
+                target_y = 0
+                
+            target_pos = pygame.math.Vector2(return_x, target_y)
+        else:
+            time_val = pygame.time.get_ticks() / 300  
+            patrol_y = return_y + math.sin(time_val) * 80  
+            target_pos = pygame.math.Vector2(return_x, patrol_y)
 
-    #     dot = self.get_forward().dot(to_player)
+        direction = target_pos - self.pos
+        distance_to_target = direction.length()
 
-    #     if distance < self.detection_range and dot > self.fov:
-    #         self.color = (255, 0, 0)
-    #         self.vel += to_player * 150 * dt
-    #     else:
-    #         self.color = (255, 255, 255)
-    #         self.vel *= 0.95
-    #         self.angle = (self.angle + self.random_rotate) % 360
+        if distance_to_target > 0.5:
+            direction = direction.normalize()
+            speed = distance_to_target * 5
+            
+            if speed > self.thrust:
+                speed = self.thrust
+        
+            self.velocity = direction * speed
+        else:
+            self.velocity = pygame.math.Vector2(0, 0)
 
-    #     self.pos += self.vel * dt
 
-    def update(self): #place holder
-            global dt
-            self.velocity += self.acceleration * dt
-            if self.pos.x > WIDTH:
-                self.pos.x = WIDTH 
-            if self.pos.x < WIDTH // 2:
-                self.pos.x = WIDTH // 2
-            if self.pos.y > HEIGHT - 200:
-                self.pos.y = HEIGHT - 200
-            if self.pos.y < 0:
-                self.pos.y = 0
-           
-            if self.velocity.length() > self.maxspd:
-                self.velocity.scale_to_length(self.maxspd)
-    
-    
-            self.velocity *= self.drag
-            self.pos += self.velocity * dt
+        self.pos += self.velocity * dt
+
+        if self.pos.y > HEIGHT - 200:
+            self.pos.y = HEIGHT - 200
+        if self.pos.y < 0:
+            self.pos.y = 0
 
 
 def bounce(paddle, ball):
@@ -237,7 +228,7 @@ async def main():
     end_font = pygame.font.SysFont("arial", 60)
     game_over = False
 
-    end_score = 2
+    end_score = 5
     running = True
     while running:
         for event in pygame.event.get():
@@ -270,7 +261,7 @@ async def main():
 
             ball.update()
             player.update()
-            enemy.update()
+            enemy.update(ball)
 
             reset()
             bounce(player, ball)
